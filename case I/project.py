@@ -1,7 +1,9 @@
 import csv
 import pandas as pd
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, association_rules
 
-with open("supermarket.csv", "r", newline="") as csvfile:
+with open("case I/supermarket.csv", "r", newline="") as csvfile:
     reader = csv.reader(csvfile)
     rows = []
 
@@ -86,5 +88,31 @@ new_df = pd.DataFrame(
     }
 )
 
-print(df.head(5))
-print(new_df)
+# Convert DataFrame to a list of transactions
+transactions = []
+for index, row in df.iterrows():
+    transaction = []
+    for item in row:
+        if item and len(item.split()) == 3:
+            department, time, price = item.split()
+            time = int(time)
+            price = float(price)
+            transaction.append(department)
+    transactions.append(transaction)
+
+# Convert the list of transactions to a DataFrame where each transaction is a row
+transaction_df = pd.DataFrame(transactions)
+
+transaction_df_bool = transaction_df.notnull()
+
+# Convert boolean DataFrame to one-hot encoded DataFrame
+onehot = transaction_df_bool.astype(int)
+
+# Frequent itemsets generation
+frequent_itemsets = apriori(onehot, min_support=0.05, use_colnames=True)
+
+# Association rules generation
+association_rules_df = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.5)
+
+print(association_rules_df)
+
