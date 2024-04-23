@@ -11,7 +11,7 @@ with open("case I/supermarket.csv", "r", newline="") as csvfile:
         row = row[:]
         rows.append(row)
 
-df = pd.DataFrame(rows)
+df = pd.DataFrame(rows[:1000])
 
 department_spend = {}
 department_items = {}
@@ -88,7 +88,7 @@ new_df = pd.DataFrame(
     }
 )
 
-# Convert DataFrame to a list of transactions
+# ASSOCIATION RULES
 transactions = []
 for index, row in df.iterrows():
     transaction = []
@@ -98,21 +98,25 @@ for index, row in df.iterrows():
             time = int(time)
             price = float(price)
             transaction.append(department)
+        else:
+            transaction.append(0)
     transactions.append(transaction)
 
-# Convert the list of transactions to a DataFrame where each transaction is a row
 transaction_df = pd.DataFrame(transactions)
 
-transaction_df_bool = transaction_df.notnull()
+encoder = TransactionEncoder()
 
-# Convert boolean DataFrame to one-hot encoded DataFrame
-onehot = transaction_df_bool.astype(int)
+transaction_df = transaction_df.applymap(str)
 
-# Frequent itemsets generation
-frequent_itemsets = apriori(onehot, min_support=0.05, use_colnames=True)
+association_data = encoder.fit_transform(transaction_df.values.tolist())
 
-# Association rules generation
-association_rules_df = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.5)
+association_df = pd.DataFrame(association_data, columns=encoder.columns_)
 
-print(association_rules_df)
+association_df = association_df.astype(int)
 
+association_df = apriori(association_df, min_support = 0.01, use_colnames = True, verbose = 1)
+association_df_filtered = association_df[association_df['support'] < 0.1]
+
+print(association_df_filtered)
+
+# df_ar = association_rules(association_df_filtered, metric = "confidence", min_threshold = 0.6)
