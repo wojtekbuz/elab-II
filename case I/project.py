@@ -1,7 +1,9 @@
 import csv
 import pandas as pd
+import pickle
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, association_rules
+from prefixspan import PrefixSpan
 
 with open("case I/supermarket.csv", "r", newline="") as csvfile:
     reader = csv.reader(csvfile)
@@ -11,7 +13,7 @@ with open("case I/supermarket.csv", "r", newline="") as csvfile:
         row = row[:]
         rows.append(row)
 
-df = pd.DataFrame(rows[:1000])
+df = pd.DataFrame(rows)
 
 department_spend = {}
 department_items = {}
@@ -88,35 +90,66 @@ new_df = pd.DataFrame(
     }
 )
 
-# ASSOCIATION RULES
-transactions = []
-for index, row in df.iterrows():
-    transaction = []
-    for item in row:
-        if item and len(item.split()) == 3:
-            department, time, price = item.split()
-            time = int(time)
-            price = float(price)
-            transaction.append(department)
-        else:
-            transaction.append(0)
-    transactions.append(transaction)
+try:
+    with open("association_rules.pkl", "rb") as f:
+        df_ar = pickle.load(f)
+except FileNotFoundError:
+    # ASSOCIATION RULES
+    transactions = []
+    for index, row in df.iterrows():
+        transaction = []
+        for item in row:
+            if item and len(item.split()) == 3:
+                department, time, price = item.split()
+                time = int(time)
+                price = float(price)
+                transaction.append(str(department))
+        transactions.append(transaction)
 
-transaction_df = pd.DataFrame(transactions)
+    encoder = TransactionEncoder()
+    association_data = encoder.fit_transform(transactions)
 
-encoder = TransactionEncoder()
+    association_df = pd.DataFrame(association_data, columns=encoder.columns_)
 
-transaction_df = transaction_df.applymap(str)
+    association_df = apriori(
+        association_df, min_support=0.001, use_colnames=True, low_memory=True
+    )
+    df_ar = association_rules(association_df, metric="confidence", min_threshold=0.75)
 
-association_data = encoder.fit_transform(transaction_df.values.tolist())
+    with open("association_rules.pkl", "wb") as f:
+        pickle.dump(df_ar, f)
 
-association_df = pd.DataFrame(association_data, columns=encoder.columns_)
+"""
+try:
+    with open("sequential_rules.pkl", "rb") as f:
+        frequent_sequences = pickle.load(f)
+except FileNotFoundError:
+    # ASSOCIATION RULES
+    transactions = []
+    for index, row in df.iterrows():
+        transaction = []
+        for item in row:
+            if item and len(item.split()) == 3:
+                department, time, price = item.split()
+                time = int(time)
+                price = float(price)
+                transaction.append(str(department))
+        transactions.append(transaction)
 
-association_df = association_df.astype(int)
+    ps = PrefixSpan(transactions)
+    frequent_sequences = ps.frequent(0.01)
 
-association_df = apriori(association_df, min_support = 0.01, use_colnames = True, verbose = 1)
-association_df_filtered = association_df[association_df['support'] < 0.1]
+    with open("sequential_rules.pkl", "wb") as f:
+        pickle.dump(frequent_sequences, f)
+"""
+
+association_df_filtered = df_ar[
+    (df_ar["support"] < 0.05) & (df_ar["zhangs_metric"] > 0.8)
+]
 
 print(association_df_filtered)
+print(len(association_df_filtered))
 
-# df_ar = association_rules(association_df_filtered, metric = "confidence", min_threshold = 0.6)
+# In fraud detection or anomaly detection scenarios, such association rules with low support but high confidence and
+# significance (as indicated by Zhang's metric) can be valuable because they represent unusual or suspicious patterns that deviate from the norm.
+# These rules may highlight potentially fraudulent behavior or rare but meaningful patterns in the data.
