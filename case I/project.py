@@ -91,7 +91,7 @@ new_df = pd.DataFrame(
 )
 
 try:
-    with open("association_rules.pkl", "rb") as f:
+    with open("case I/association_rules.pkl", "rb") as f:
         df_ar = pickle.load(f)
 except FileNotFoundError:
     # ASSOCIATION RULES
@@ -116,15 +116,15 @@ except FileNotFoundError:
     )
     df_ar = association_rules(association_df, metric="confidence", min_threshold=0.75)
 
-    with open("association_rules.pkl", "wb") as f:
+    with open("case I/association_rules.pkl", "wb") as f:
         pickle.dump(df_ar, f)
 
-"""
+
 try:
-    with open("sequential_rules.pkl", "rb") as f:
+    with open("case I/sequential_rules.pkl", "rb") as f:
         frequent_sequences = pickle.load(f)
 except FileNotFoundError:
-    # ASSOCIATION RULES
+    # SEQUENTIAL RULES
     transactions = []
     for index, row in df.iterrows():
         transaction = []
@@ -136,12 +136,11 @@ except FileNotFoundError:
                 transaction.append(str(department))
         transactions.append(transaction)
 
-    ps = PrefixSpan(transactions)
-    frequent_sequences = ps.frequent(0.01)
+    frequent_sequences = PrefixSpan(transactions)
 
-    with open("sequential_rules.pkl", "wb") as f:
+    with open("case I/sequential_rules.pkl", "wb") as f:
         pickle.dump(frequent_sequences, f)
-"""
+
 
 association_df_filtered = df_ar[
     (df_ar["support"] < 0.05) & (df_ar["zhangs_metric"] > 0.8)
@@ -149,6 +148,10 @@ association_df_filtered = df_ar[
 
 print(association_df_filtered)
 print(len(association_df_filtered))
+
+for support, seq in frequent_sequences.frequent(1, closed=True):
+    if support < 5:
+        print(support, seq)
 
 # In fraud detection or anomaly detection scenarios, such association rules with low support but high confidence and
 # significance (as indicated by Zhang's metric) can be valuable because they represent unusual or suspicious patterns that deviate from the norm.
