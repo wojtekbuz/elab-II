@@ -1,5 +1,6 @@
 import csv
 import pandas as pd
+import numpy as np
 import pickle
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, association_rules
@@ -69,23 +70,14 @@ except FileNotFoundError:
         pickle.dump(frequent_sequences, f)
 
 association_df_filtered = df_ar[
-    (df_ar["support"] > 0.1) & (df_ar["zhangs_metric"] > 0.6)
+    (df_ar["support"] > 0.40)
 ]
 sorted_rules = association_df_filtered.sort_values(
     by=["support", "confidence", "zhangs_metric"], ascending=[False, False, False]
 )
 
-print(sorted_rules.head(20))
+print(sorted_rules.head(50))
 print(len(sorted_rules))
-
-for support, seq in frequent_sequences:
-    if support < 20 and len(seq) <= 2 and len(seq) > 1:
-        print(support, seq)
-
-for support, seq in frequent_sequences:
-    if support > 400 and len(seq) <= 3 and len(seq) > 1:
-        print(support, seq)
-
 # In fraud detection or anomaly detection scenarios, such association rules with low support but high confidence and
 # significance (as indicated by Zhang's metric) can be valuable because they represent unusual or suspicious patterns that deviate from the norm.
 # These rules may highlight potentially fraudulent behavior or rare but meaningful patterns in the data.
