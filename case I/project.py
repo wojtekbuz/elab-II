@@ -81,7 +81,6 @@ sorted_rules = association_df_filtered.sort_values(
 filtered_sequences = [seq for support, seq in frequent_sequences if support >= 475 and len(seq) > 1]
 
 print(sorted_rules.head(20))
-print(len(sorted_rules))
 print(filtered_sequences)
 # In fraud detection or anomaly detection scenarios, such association rules with low support but high confidence and
 # significance (as indicated by Zhang's metric) can be valuable because they represent unusual or suspicious patterns that deviate from the norm.

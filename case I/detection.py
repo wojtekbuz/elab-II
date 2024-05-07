@@ -49,12 +49,12 @@ for idx, transaction in zip(transaction_ids, test_transactions):
 if len(flagged_transactions) == 0:
     print("No flagged transactions")
 elif len(flagged_transactions) <= 150:
-    print("Flagged Transactions:")
+    print(f"{len(flagged_transactions)} Flagged Transactions")
     for idx, transaction in flagged_transactions:
         print(f"{idx}")
 elif len(flagged_transactions) > 150:
     random_selected_transactions = random.sample(flagged_transactions, 150)
-    print("Flagged Transactions:")
+    print(f"{len(random_selected_transactions)} / {len(flagged_transactions)} Flagged Transactions")
     for idx, transaction in random_selected_transactions:
         print(f"{idx}")
         
