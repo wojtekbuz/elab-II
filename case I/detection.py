@@ -1,7 +1,7 @@
 from project import *
 import random
 
-with open("case I/case1.csv", "r", newline="") as csvfile:
+with open("case I/case2.csv", "r", newline="") as csvfile:
     reader = csv.reader(csvfile)
     test_transactions = []
     transaction_ids = []
@@ -51,10 +51,12 @@ if len(flagged_transactions) == 0:
 elif len(flagged_transactions) <= 150:
     print(f"{len(flagged_transactions)} Flagged Transactions")
     for idx, transaction in flagged_transactions:
-        print(f"{idx}")
+        transaction_number = idx.split()[1]
+        print(f"{transaction_number}")
 elif len(flagged_transactions) > 150:
     random_selected_transactions = random.sample(flagged_transactions, 150)
     print(f"{len(random_selected_transactions)} / {len(flagged_transactions)} Flagged Transactions")
     for idx, transaction in random_selected_transactions:
-        print(f"{idx}")
+        transaction_number = idx.split()[1]
+        print(f"{transaction_number}")
         
