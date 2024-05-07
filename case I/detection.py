@@ -1,6 +1,7 @@
 from project import *
+import random
 
-with open("case I/case0.csv", "r", newline="") as csvfile:
+with open("case I/case1.csv", "r", newline="") as csvfile:
     reader = csv.reader(csvfile)
     test_transactions = []
     transaction_ids = []
@@ -33,12 +34,27 @@ for idx, transaction in zip(transaction_ids, test_transactions):
         ):
             # If the antecedent and consequent are in the transaction, unflag the transaction
             fraudulent = False
+            break
+    
+    if fraudulent:
+        for seq in filtered_sequences:
+            for item in range(len(transaction) - len(seq) + 1):
+                if transaction[item: item + len(seq)] == seq:
+                    fraudulent = False
+                    break
 
     if fraudulent == True:
         flagged_transactions.append((idx, transaction))
 
-print("Flagged Transactions:")
-for idx, transaction in flagged_transactions:
-    print(f"{idx}")
-
-print(len(flagged_transactions))
+if len(flagged_transactions) == 0:
+    print("No flagged transactions")
+elif len(flagged_transactions) <= 150:
+    print("Flagged Transactions:")
+    for idx, transaction in flagged_transactions:
+        print(f"{idx}")
+elif len(flagged_transactions) > 150:
+    random_selected_transactions = random.sample(flagged_transactions, 150)
+    print("Flagged Transactions:")
+    for idx, transaction in random_selected_transactions:
+        print(f"{idx}")
+        

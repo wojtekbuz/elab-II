@@ -70,14 +70,19 @@ except FileNotFoundError:
         pickle.dump(frequent_sequences, f)
 
 association_df_filtered = df_ar[
-    (df_ar["support"] > 0.40)
+    (df_ar["support"] >= 0.3) & (df_ar["lift"] >= 1.25) &
+    (df_ar["antecedents"].apply(lambda x: len(x)) > 1)
 ]
+
 sorted_rules = association_df_filtered.sort_values(
-    by=["support", "confidence", "zhangs_metric"], ascending=[False, False, False]
+    by=["support", "confidence", "lift"], ascending=[False, False, False]
 )
 
-print(sorted_rules.head(50))
+filtered_sequences = [seq for support, seq in frequent_sequences if support >= 475 and len(seq) > 1]
+
+print(sorted_rules.head(20))
 print(len(sorted_rules))
+print(filtered_sequences)
 # In fraud detection or anomaly detection scenarios, such association rules with low support but high confidence and
 # significance (as indicated by Zhang's metric) can be valuable because they represent unusual or suspicious patterns that deviate from the norm.
 # These rules may highlight potentially fraudulent behavior or rare but meaningful patterns in the data.
