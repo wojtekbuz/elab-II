@@ -23,9 +23,9 @@ class DataMiner:
                 if item and len(item.split()) == 3:
                     department, time, price = item.split()
                     if department not in transactions:
-                        transactions[department] = {'time': [], 'price': []}
-                    transactions[department]['time'].append(float(time))
-                    transactions[department]['price'].append(float(price))
+                        transactions[department] = {"time": [], "price": []}
+                    transactions[department]["time"].append(float(time))
+                    transactions[department]["price"].append(float(price))
         return transactions
 
     def mine_association_rules(self, support, lift):
@@ -84,9 +84,9 @@ class DataMiner:
         time_bounds = {}
 
         for department, data in transactions.items():
-            time_values = data['time']
+            time_values = data["time"]
             time = np.array(time_values)
-            
+
             lower_bound = float(np.percentile(time, lower_percentile))
             upper_bound = float(np.percentile(time, upper_percentile))
 
@@ -94,13 +94,13 @@ class DataMiner:
 
         print("Time bounds determined.")
         return time_bounds
-    
+
     def find_price_outliers(self, lower_percentile, upper_percentile):
         transactions = self.load_data()
         price_bounds = {}
 
         for department, data in transactions.items():
-            price_values = data['price']
+            price_values = data["price"]
             prices = np.array(price_values)
 
             lower_bound = float(np.percentile(prices, lower_percentile))

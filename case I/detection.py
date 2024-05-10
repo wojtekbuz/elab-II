@@ -1,6 +1,8 @@
 import csv
 import random
 from project import DataMiner
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class FraudDetector:
@@ -113,15 +115,60 @@ class FraudDetector:
             if fraud_score >= score_threshold:
                 flagged_transactions.append((idx, transaction))
 
-        return flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score
+        plot_rules = data_miner.mine_association_rules(support=0.1, lift=1)
+        plt.figure(figsize=(10, 6))
+        plt.scatter(plot_rules["support"], plot_rules["lift"], color="blue", alpha=0.5)
+        plt.xlabel("Support")
+        plt.ylabel("Lift")
+        plt.title("Association Rules: Support vs. Lift")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        time_values = [
+            time for transaction in test_transactions for _, time, _ in transaction
+        ]
+        plt.figure(figsize=(10, 6))
+        sns.histplot(time_values, kde=True, color="blue")
+        plt.xlabel("Transaction Time")
+        plt.ylabel("Frequency")
+        plt.title("Time Outliers Analysis")
+        plt.tight_layout()
+        plt.show()
+
+        price_values = [
+            price for transaction in test_transactions for _, _, price in transaction
+        ]
+        plt.figure(figsize=(10, 6))
+        sns.histplot(price_values, kde=True, color="red")
+        plt.xlabel("Transaction Price")
+        plt.ylabel("Frequency")
+        plt.title("Price Outliers Analysis")
+        plt.tight_layout()
+        plt.show()
+
+        return (
+            flagged_transactions,
+            total_ar_score,
+            total_seq_score,
+            total_time_score,
+            total_price_score,
+        )
 
     def print_flagged_transactions(
-        self, flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score
+        self,
+        flagged_transactions,
+        total_ar_score,
+        total_seq_score,
+        total_time_score,
+        total_price_score,
     ):
         if len(flagged_transactions) == 0:
             print("No flagged transactions")
         elif len(flagged_transactions) <= 150:
-            total_score = total_ar_score + total_seq_score + total_time_score + total_price_score
+            total_score = (
+                total_ar_score + total_seq_score + total_time_score + total_price_score
+            )
             print(
                 f"Total Association Rules Score: {total_ar_score} ({total_ar_score / total_score * 100:.2f}%)"
             )
@@ -140,7 +187,9 @@ class FraudDetector:
                 print(f"{transaction_number}")
         else:
             random_selected_transactions = random.sample(flagged_transactions, 150)
-            total_score = total_ar_score + total_seq_score + total_time_score + total_price_score
+            total_score = (
+                total_ar_score + total_seq_score + total_time_score + total_price_score
+            )
             print(
                 f"Total Association Rules Score: {total_ar_score} ({total_ar_score / total_score * 100:.2f}%)"
             )
@@ -168,11 +217,19 @@ if __name__ == "__main__":
     test_transactions, transaction_ids = fraud_detector.load_transactions(
         "case I/case16.csv"
     )
-    flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score = (
-        fraud_detector.detect_fraud(
-            test_transactions, transaction_ids, score_threshold=3
-        )
+    (
+        flagged_transactions,
+        total_ar_score,
+        total_seq_score,
+        total_time_score,
+        total_price_score,
+    ) = fraud_detector.detect_fraud(
+        test_transactions, transaction_ids, score_threshold=3
     )
     fraud_detector.print_flagged_transactions(
-        flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score
+        flagged_transactions,
+        total_ar_score,
+        total_seq_score,
+        total_time_score,
+        total_price_score,
     )
