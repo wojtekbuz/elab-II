@@ -18,12 +18,12 @@ class FraudDetector:
                 transaction_index = transaction_info[0]
                 first_transaction = transaction_info[1]
                 if first_transaction:
-                    department, _, _ = first_transaction.split()
-                    transaction.append(department)
+                    department, time, price = first_transaction.split()
+                    transaction.append((department, float(time), float(price)))
                 for item in row:
                     if item and len(item.split()) == 3:
-                        department, _, _ = item.split()
-                        transaction.append(department)
+                        department, time, price = item.split()
+                        transaction.append((department, float(time), float(price)))
                 if transaction:
                     test_transactions.append(transaction)
                     transaction_ids.append(transaction_index)
@@ -33,43 +33,126 @@ class FraudDetector:
     def detect_fraud(self, test_transactions, transaction_ids, score_threshold):
         flagged_transactions = []
 
-        sorted_rules = data_miner.mine_association_rules(df, support=0.33, lift=1.3)
+        # MINE ASSOCIATION RULES
+        sorted_rules = data_miner.mine_association_rules(support=0.33, lift=1.3)
         print(sorted_rules)
-        frequent_sequences = data_miner.mine_sequential_rules(df, threshold=460)
+        # MINE SEQUENTIAL RULES
+        frequent_sequences = data_miner.mine_sequential_rules(threshold=460)
         print(frequent_sequences)
+        # FIND TIME OUTLIERS
+        time_bounds = data_miner.find_time_outliers(
+            lower_percentile=5, upper_percentile=95
+        )
+        print(time_bounds)
+        # FIND PRICE OUTLIERS
+        price_bounds = data_miner.find_price_outliers(
+            lower_percentile=4.5, upper_percentile=95.5
+        )
+        print(price_bounds)
 
+        total_ar_score = 0
+        total_seq_score = 0
+        total_time_score = 0
+        total_price_score = 0
         for idx, transaction in zip(transaction_ids, test_transactions):
-            fraud_score = 2
+            # STARTING SCORE
+            fraud_score = 0
+
+            # CHECK ASSOCIATION RULES (increase in support = less flagged transactions)
             for _, rule in sorted_rules.iterrows():
                 antecedent = set(rule["antecedents"])
                 consequent = set(rule["consequents"])
-                if antecedent.issubset(set(transaction)) and not consequent.issubset(
-                    set(transaction)
-                ):
-                    fraud_score -= 1
+                # if we find antecedent but not consequent, increase fraud score
+                if antecedent.issubset(
+                    set(item[0] for item in transaction)
+                ) and not consequent.issubset(set(item[0] for item in transaction)):
+                    fraud_score += 1.0
+                    total_ar_score += 1.0
                     break
 
+            # CHECK SEQUENTIAL RULES (decrease in threshold = less flagged transactions)
+            no_sequences_found = True
             for seq in frequent_sequences:
-                for item in range(len(transaction) - len(seq) + 1):
-                    if transaction[item : item + len(seq)] == seq:
-                        fraud_score -= 1
+                for start_index in range(len(transaction) - len(seq) + 1):
+                    end_index = start_index + len(seq)
+                    sub_transaction = transaction[start_index:end_index]
+                    if [item[0] for item in sub_transaction] == seq:
+                        no_sequences_found = False
                         break
 
-            if fraud_score == score_threshold:
+            # if no matching sequences are found, increase fraud score
+            if no_sequences_found:
+                fraud_score += 1.0
+                total_seq_score += 1.0
+
+            # CHECK TIME OUTLIERS (stricter bounds = less flagged transactions)
+            count_time_exceeded = 0
+            for department, time, _ in transaction:
+                lower_bound, upper_bound = time_bounds.get(department, (None, None))
+                # if a time is outside the bounds, increase fraud score
+                if time < lower_bound or time > upper_bound:
+                    count_time_exceeded += 1
+
+            if count_time_exceeded > 2:
+                fraud_score += 1.5
+                total_time_score += 1.5
+
+            # CHECK PRICE OUTLIERS (stricter bounds = less flagged transactions)
+            count_price_exceeded = 0
+            for department, _, price in transaction:
+                lower_bound, upper_bound = price_bounds.get(department, (None, None))
+                # if a time is outside the bounds, increase fraud score
+                if price < lower_bound or price > upper_bound:
+                    count_price_exceeded += 1
+
+            if count_price_exceeded > 2:
+                fraud_score += 1.5
+                total_price_score += 1.5
+
+            # SCORE THRESHOLD
+            if fraud_score >= score_threshold:
                 flagged_transactions.append((idx, transaction))
 
-        return flagged_transactions
+        return flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score
 
-    def print_flagged_transactions(self, flagged_transactions):
+    def print_flagged_transactions(
+        self, flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score
+    ):
         if len(flagged_transactions) == 0:
             print("No flagged transactions")
         elif len(flagged_transactions) <= 150:
+            total_score = total_ar_score + total_seq_score + total_time_score + total_price_score
+            print(
+                f"Total Association Rules Score: {total_ar_score} ({total_ar_score / total_score * 100:.2f}%)"
+            )
+            print(
+                f"Total Sequential Rules Score: {total_seq_score} ({total_seq_score / total_score * 100:.2f}%)"
+            )
+            print(
+                f"Total Time Outliers Score: {total_time_score} ({total_time_score / total_score * 100:.2f}%)"
+            )
+            print(
+                f"Total Price Outliers Score: {total_price_score} ({total_price_score / total_score * 100:.2f}%)"
+            )
             print(f"{len(flagged_transactions)} Flagged Transactions")
             for idx, _ in flagged_transactions:
                 transaction_number = idx.split()[1]
                 print(f"{transaction_number}")
         else:
             random_selected_transactions = random.sample(flagged_transactions, 150)
+            total_score = total_ar_score + total_seq_score + total_time_score + total_price_score
+            print(
+                f"Total Association Rules Score: {total_ar_score} ({total_ar_score / total_score * 100:.2f}%)"
+            )
+            print(
+                f"Total Sequential Rules Score: {total_seq_score} ({total_seq_score / total_score * 100:.2f}%)"
+            )
+            print(
+                f"Total Time Outliers Score: {total_time_score} ({total_time_score / total_score * 100:.2f}%)"
+            )
+            print(
+                f"Total Price Outliers Score: {total_price_score} ({total_price_score / total_score * 100:.2f}%)"
+            )
             print(
                 f"{len(random_selected_transactions)} / {len(flagged_transactions)} Flagged Transactions"
             )
@@ -80,13 +163,16 @@ class FraudDetector:
 
 if __name__ == "__main__":
     data_miner = DataMiner("case I/supermarket.csv")
-    df = data_miner.load_data()
-
     fraud_detector = FraudDetector(data_miner)
+
     test_transactions, transaction_ids = fraud_detector.load_transactions(
-        "case I/case9.csv"
+        "case I/case16.csv"
     )
-    flagged_transactions = fraud_detector.detect_fraud(
-        test_transactions, transaction_ids, score_threshold=2
+    flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score = (
+        fraud_detector.detect_fraud(
+            test_transactions, transaction_ids, score_threshold=3
+        )
     )
-    fraud_detector.print_flagged_transactions(flagged_transactions)
+    fraud_detector.print_flagged_transactions(
+        flagged_transactions, total_ar_score, total_seq_score, total_time_score, total_price_score
+    )
