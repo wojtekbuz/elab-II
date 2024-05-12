@@ -2,9 +2,12 @@ import csv
 import pandas as pd
 import numpy as np
 import pickle
+import matplotlib.pyplot as plt
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, association_rules
 from prefixspan import PrefixSpan
+from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances_argmin_min
 
 
 class DataMiner:
@@ -18,15 +21,24 @@ class DataMiner:
         df = pd.DataFrame(rows)
 
         transactions = {}
+        departments = {}
         for index, row in df.iterrows():
             for item in row:
                 if item and len(item.split()) == 3:
                     department, time, price = item.split()
-                    if department not in transactions:
-                        transactions[department] = {"time": [], "price": []}
-                    transactions[department]["time"].append(float(time))
-                    transactions[department]["price"].append(float(price))
-        return transactions
+                    if index not in transactions:
+                        transactions[index] = {"departments": [], "times": [], "prices": []}
+                    if department not in departments:
+                        departments[department] = {"times": [], "prices": []}
+
+                    transactions[index]["departments"].append(department)
+                    transactions[index]["times"].append(float(time))
+                    transactions[index]["prices"].append(float(price))
+
+                    departments[department]["times"].append(float(time))
+                    departments[department]["prices"].append(float(price))
+
+        return transactions, departments
 
     def mine_association_rules(self, support, lift):
         try:
@@ -79,34 +91,101 @@ class DataMiner:
 
         return filtered_sequences
 
-    def find_time_outliers(self, lower_percentile, upper_percentile):
-        transactions = self.load_data()
+    def find_time_outliers(self, lower_percentile, upper_percentile, k, threshold_percentile):
+        transactions, departments = self.load_data()
         time_bounds = {}
+        total_time_spent = {}
+        total_items = {}
 
-        for department, data in transactions.items():
-            time_values = data["time"]
+        for department, data in departments.items():
+            time_values = data["times"]
             time = np.array(time_values)
 
             lower_bound = float(np.percentile(time, lower_percentile))
             upper_bound = float(np.percentile(time, upper_percentile))
 
             time_bounds[department] = (lower_bound, upper_bound)
+        
+        for transaction, data in transactions.items():
+            departments = data["departments"]
+            price_values = data["times"]
+            total_time_spent[transaction] = sum(price_values)
+            total_items[transaction] = len(departments)
 
-        print("Time bounds determined.")
-        return time_bounds
+        X = np.array([[total_time_spent[transaction], total_items[transaction]] for transaction in transactions])
 
-    def find_price_outliers(self, lower_percentile, upper_percentile):
-        transactions = self.load_data()
-        price_bounds = {}
+        kmeans = KMeans(n_clusters = k, random_state=1)
+        kmeans.fit(X)
 
-        for department, data in transactions.items():
-            price_values = data["price"]
-            prices = np.array(price_values)
+        cluster_labels = kmeans.labels_
+        cluster_centroids = kmeans.cluster_centers_
 
-            lower_bound = float(np.percentile(prices, lower_percentile))
-            upper_bound = float(np.percentile(prices, upper_percentile))
+        clusters = {i: [] for i in range(len(cluster_centroids))}
 
-            price_bounds[department] = (lower_bound, upper_bound)
+        distances = pairwise_distances_argmin_min(X, cluster_centroids)[1]
 
-        print("Price bounds determined.")
-        return price_bounds
+        threshold = np.percentile(distances, threshold_percentile)
+
+        # Assign transactions to clusters
+        for transaction, _ in total_time_spent.items():
+            cluster_label = cluster_labels[transaction]
+            clusters[cluster_label].append(transaction)
+
+        plt.figure(figsize=(10, 6))
+        for label, transactions in clusters.items():
+            plt.scatter([total_time_spent[t] for t in transactions], [total_items[t] for t in transactions], label=f'Cluster {label}', alpha=0.5)
+        plt.scatter(cluster_centroids[:, 0], cluster_centroids[:, 1], s=300, c='red', marker='X', edgecolors='black', label='Centroids')
+        plt.title('Clusters and Centroids')
+        plt.xlabel('Total Time Spent')
+        plt.ylabel('Total Items')
+        plt.legend()
+        plt.grid(True)
+
+        print("Time bounds and centroids determined.")
+
+        return time_bounds, cluster_centroids, threshold
+
+    def find_price_outliers(self, k, threshold_percentile):
+        transactions, departments = self.load_data()
+        total_price_spent = {}
+        total_items = {}
+
+        # TRANSACTION-LEVEL CLUSTERING BASED ON TOTAL SPENT AND TOTAL ITEMS
+        for transaction, data in transactions.items():
+            departments = data["departments"]
+            price_values = data["prices"]
+            total_price_spent[transaction] = sum(price_values)
+            total_items[transaction] = len(departments)
+
+        X = np.array([[total_price_spent[transaction], total_items[transaction]] for transaction in transactions])
+
+        kmeans = KMeans(n_clusters = k, random_state=1)
+        kmeans.fit(X)
+
+        cluster_labels = kmeans.labels_
+        cluster_centroids = kmeans.cluster_centers_
+
+        clusters = {i: [] for i in range(len(cluster_centroids))}
+
+        distances = pairwise_distances_argmin_min(X, cluster_centroids)[1]
+
+        threshold = np.percentile(distances, threshold_percentile)
+
+        # Assign transactions to clusters
+        for transaction, _ in total_price_spent.items():
+            cluster_label = cluster_labels[transaction]
+            clusters[cluster_label].append(transaction)
+
+        plt.figure(figsize=(10, 6))
+        for label, transactions in clusters.items():
+            plt.scatter([total_price_spent[t] for t in transactions], [total_items[t] for t in transactions], label=f'Cluster {label}', alpha=0.5)
+        plt.scatter(cluster_centroids[:, 0], cluster_centroids[:, 1], s=300, c='red', marker='X', edgecolors='black', label='Centroids')
+        plt.title('Clusters and Centroids')
+        plt.xlabel('Total Price Spent')
+        plt.ylabel('Total Items')
+        plt.legend()
+        plt.grid(True)
+
+        print("Price centroids determined.")
+    
+        return cluster_centroids, threshold

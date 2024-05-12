@@ -1,6 +1,9 @@
 import csv
 import random
+import numpy as np
 from project import DataMiner
+from scipy import stats
+from sklearn.metrics import pairwise_distances_argmin_min
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -39,18 +42,17 @@ class FraudDetector:
         sorted_rules = data_miner.mine_association_rules(support=0.33, lift=1.3)
         print(sorted_rules)
         # MINE SEQUENTIAL RULES
-        frequent_sequences = data_miner.mine_sequential_rules(threshold=460)
+        frequent_sequences = data_miner.mine_sequential_rules(threshold=450)
         print(frequent_sequences)
         # FIND TIME OUTLIERS
-        time_bounds = data_miner.find_time_outliers(
-            lower_percentile=5, upper_percentile=95
+        time_bounds, time_cluster_centroids, time_threshold = data_miner.find_time_outliers(
+            lower_percentile=5, upper_percentile=95, k=4, threshold_percentile=75
         )
         print(time_bounds)
+        print(time_cluster_centroids)
         # FIND PRICE OUTLIERS
-        price_bounds = data_miner.find_price_outliers(
-            lower_percentile=4.5, upper_percentile=95.5
-        )
-        print(price_bounds)
+        price_cluster_centroids, price_threshold = data_miner.find_price_outliers(k=4, threshold_percentile=75)
+        print(price_cluster_centroids)
 
         total_ar_score = 0
         total_seq_score = 0
@@ -68,8 +70,8 @@ class FraudDetector:
                 if antecedent.issubset(
                     set(item[0] for item in transaction)
                 ) and not consequent.issubset(set(item[0] for item in transaction)):
-                    fraud_score += 1.0
-                    total_ar_score += 1.0
+                    fraud_score += 0.0
+                    total_ar_score += 0.0
                     break
 
             # CHECK SEQUENTIAL RULES (decrease in threshold = less flagged transactions)
@@ -96,20 +98,32 @@ class FraudDetector:
                     count_time_exceeded += 1
 
             if count_time_exceeded > 2:
-                fraud_score += 1.5
-                total_time_score += 1.5
+                fraud_score += 0.0
+                total_time_score += 0.0
+            
+            # CHECK TOTAL TIME SPENT AND TOTAL ITEMS OUTLIERS (stricter bounds = less flagged transactions)
+            total_time_spent = sum(time for _, time, _ in transaction)
+            total_items = 0
+            for department, _, _ in transaction:
+                total_items += 1
+            X = np.array([[total_time_spent, total_items]])
+            distances = pairwise_distances_argmin_min(X, time_cluster_centroids)[1]
 
-            # CHECK PRICE OUTLIERS (stricter bounds = less flagged transactions)
-            count_price_exceeded = 0
-            for department, _, price in transaction:
-                lower_bound, upper_bound = price_bounds.get(department, (None, None))
-                # if a time is outside the bounds, increase fraud score
-                if price < lower_bound or price > upper_bound:
-                    count_price_exceeded += 1
+            if min(distances) > time_threshold:
+                fraud_score += 2.0
+                total_time_score += 2.0
 
-            if count_price_exceeded > 2:
-                fraud_score += 1.5
-                total_price_score += 1.5
+            # CHECK TOTAL PRICE SPENT AND TOTAL ITEMS OUTLIERS (stricter bounds = less flagged transactions)
+            total_price_spent = sum(price for _, _, price in transaction)
+            total_items = 0
+            for department, _, _ in transaction:
+                total_items += 1
+            X = np.array([[total_price_spent, total_items]])
+            distances = pairwise_distances_argmin_min(X, price_cluster_centroids)[1]
+
+            if min(distances) > price_threshold:
+                fraud_score += 2.0
+                total_price_score += 2.0
 
             # SCORE THRESHOLD
             if fraud_score >= score_threshold:
@@ -123,7 +137,6 @@ class FraudDetector:
         plt.title("Association Rules: Support vs. Lift")
         plt.grid(True)
         plt.tight_layout()
-        plt.show()
 
         time_values = [
             time for transaction in test_transactions for _, time, _ in transaction
@@ -134,7 +147,6 @@ class FraudDetector:
         plt.ylabel("Frequency")
         plt.title("Time Outliers Analysis")
         plt.tight_layout()
-        plt.show()
 
         price_values = [
             price for transaction in test_transactions for _, _, price in transaction
@@ -145,7 +157,6 @@ class FraudDetector:
         plt.ylabel("Frequency")
         plt.title("Price Outliers Analysis")
         plt.tight_layout()
-        plt.show()
 
         return (
             flagged_transactions,
@@ -215,7 +226,7 @@ if __name__ == "__main__":
     fraud_detector = FraudDetector(data_miner)
 
     test_transactions, transaction_ids = fraud_detector.load_transactions(
-        "case I/case16.csv"
+        "case I/case34.csv"
     )
     (
         flagged_transactions,
@@ -224,7 +235,7 @@ if __name__ == "__main__":
         total_time_score,
         total_price_score,
     ) = fraud_detector.detect_fraud(
-        test_transactions, transaction_ids, score_threshold=3
+        test_transactions, transaction_ids, score_threshold=3.0
     )
     fraud_detector.print_flagged_transactions(
         flagged_transactions,
